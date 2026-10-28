@@ -1,0 +1,14 @@
+apiVersion: v2
+name: volumetrash
+description: Kubernetes operator that purges trashed project volumes once their retention has passed
+home: https://github.com/wutz/volumetrash
+sources:
+  - https://github.com/wutz/volumetrash
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - kubernetes
+  - operator
+  - trash
+  - persistentvolumeclaim

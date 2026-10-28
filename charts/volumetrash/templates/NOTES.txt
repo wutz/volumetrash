@@ -1,0 +1,12 @@
+volumetrash {{ .Chart.AppVersion }} is installed in namespace {{ .Release.Namespace }}.
+
+It purges trashed volumes (PersistentVolumeClaims) once their retention has
+passed. Retention comes from the owning project's trashRetention, else from the
+platform config in {{ .Values.platform.namespace }}/{{ .Values.platform.configMap }}.
+
+It needs the Project CRD (project.wutz.dev) to be installed in the cluster.
+
+Check the operator:
+
+  kubectl -n {{ .Release.Namespace }} get deployment {{ include "volumetrash.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} logs deployment/{{ include "volumetrash.fullname" . }}
