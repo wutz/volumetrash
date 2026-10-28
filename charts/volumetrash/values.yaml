@@ -1,0 +1,38 @@
+# Default values for volumetrash.
+
+image:
+  repository: ghcr.io/wutz/volumetrash
+  # Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicas: 1
+
+# Leader election is only needed when running more than one replica.
+leaderElection: false
+
+# Extra arguments for the manager binary.
+extraArgs: []
+
+# The platform ConfigMap that forgeai renders. Only its trashRetention is read,
+# for volumes trashed without a project retention.
+platform:
+  namespace: forgeai-system
+  configMap: forgeai-platform
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+imagePullSecrets: []
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+podLabels: {}
