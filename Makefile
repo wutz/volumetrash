@@ -51,6 +51,10 @@ vet: ## Run go vet against code.
 lint: golangci-lint ## Run golangci-lint linter.
 	"$(GOLANGCI_LINT)" run
 
+.PHONY: lint-config
+lint-config: golangci-lint ## Verify golangci-lint configuration.
+	"$(GOLANGCI_LINT)" config verify
+
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes.
 	"$(GOLANGCI_LINT)" run --fix
