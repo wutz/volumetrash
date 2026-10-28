@@ -75,26 +75,47 @@ func TestExpireAt(t *testing.T) {
 }
 
 func TestMigrateLegacy(t *testing.T) {
+	now := time.Now()
 	tests := []struct {
-		name       string
-		labels     map[string]string
-		wantLabels map[string]string
+		name            string
+		labels          map[string]string
+		annotations     map[string]string
+		wantLabels      map[string]string
+		wantAnnotations map[string]string
 	}{
 		{
-			name:       "legacy label moves to ignore label",
-			labels:     map[string]string{LabelLegacy: "true", "app": "forge"},
-			wantLabels: map[string]string{LabelIgnore: "true", "app": "forge"},
+			name:            "migrate legacy label, trashed-at, and expire-at annotations",
+			labels:          map[string]string{LabelLegacy: "true", "app": "forge"},
+			annotations:     map[string]string{AnnotationLegacyTrashedAt: now.Format(time.RFC3339), AnnotationLegacyExpireAt: now.Add(time.Hour).Format(time.RFC3339)},
+			wantLabels:      map[string]string{LabelIgnore: "true", "app": "forge"},
+			wantAnnotations: map[string]string{AnnotationTrashedAt: now.Format(time.RFC3339), AnnotationExpireAt: now.Add(time.Hour).Format(time.RFC3339)},
 		},
 		{
-			name:       "volume without legacy label is left alone",
-			labels:     map[string]string{"app": "forge"},
-			wantLabels: map[string]string{"app": "forge"},
+			name:            "migrate only legacy label",
+			labels:          map[string]string{LabelLegacy: "true", "app": "forge"},
+			annotations:     nil,
+			wantLabels:      map[string]string{LabelIgnore: "true", "app": "forge"},
+			wantAnnotations: map[string]string{},
+		},
+		{
+			name:            "migrate only legacy annotations",
+			labels:          map[string]string{"app": "forge"},
+			annotations:     map[string]string{AnnotationLegacyTrashedAt: now.Format(time.RFC3339)},
+			wantLabels:      map[string]string{"app": "forge"},
+			wantAnnotations: map[string]string{AnnotationTrashedAt: now.Format(time.RFC3339)},
+		},
+		{
+			name:            "volume without legacy items is left alone",
+			labels:          map[string]string{"app": "forge"},
+			annotations:     map[string]string{AnnotationExpireAt: now.Format(time.RFC3339)},
+			wantLabels:      map[string]string{"app": "forge"},
+			wantAnnotations: map[string]string{AnnotationExpireAt: now.Format(time.RFC3339)},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
-				Name: "data", Namespace: "forge-demo", Labels: tt.labels,
+				Name: "data", Namespace: "forge-demo", Labels: tt.labels, Annotations: tt.annotations,
 			}}
 			c := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(pvc.DeepCopy()).Build()
 			if err := MigrateLegacy(context.Background(), c, pvc); err != nil {
@@ -110,6 +131,14 @@ func TestMigrateLegacy(t *testing.T) {
 			for k, v := range tt.wantLabels {
 				if got.Labels[k] != v {
 					t.Errorf("label %s = %q, want %q", k, got.Labels[k], v)
+				}
+			}
+			if !sets.KeySet(got.Annotations).Equal(sets.KeySet(tt.wantAnnotations)) {
+				t.Errorf("annotations = %v, want keys %v", got.Annotations, tt.wantAnnotations)
+			}
+			for k, v := range tt.wantAnnotations {
+				if got.Annotations[k] != v {
+					t.Errorf("annotation %s = %q, want %q", k, got.Annotations[k], v)
 				}
 			}
 		})

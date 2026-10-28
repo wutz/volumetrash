@@ -1,8 +1,8 @@
 # volumetrash
 
 Kubernetes operator that purges trashed project volumes once their retention has
-passed. It is the expiry half of the volume trash: forgeai moves a volume to the
-trash, and this operator deletes it when its expiry comes.
+passed. Clients (such as project management systems) move a volume to the trash,
+and this operator deletes it when its expiry comes.
 
 ## How it works
 
@@ -12,9 +12,11 @@ A volume (PersistentVolumeClaim) is in the trash while it carries the label
 | Field | Meaning |
 | --- | --- |
 | label `fileserver.wutz.dev/ignore=true` | The volume is in the trash. |
-| label `forgeai.wutz.dev/trash=true` | Legacy trash label from before FileServer 0.3.0; moved to the ignore label. |
-| annotation `forgeai.wutz.dev/trashed-at` | When the volume was trashed (RFC3339). |
-| annotation `forgeai.wutz.dev/expire-at` | When the volume is purged (RFC3339). |
+| label `forgeai.wutz.dev/trash=true` | Legacy trash label (pre-split from forgeai); automatically migrated to the ignore label. |
+| annotation `volumetrash.wutz.dev/trashed-at` | When the volume was moved to the trash (RFC3339). |
+| annotation `volumetrash.wutz.dev/expire-at` | When the volume is purged (RFC3339). |
+| annotation `forgeai.wutz.dev/trashed-at` | Legacy annotation (pre-split); automatically migrated to `volumetrash.wutz.dev/trashed-at`. |
+| annotation `forgeai.wutz.dev/expire-at` | Legacy annotation (pre-split); automatically migrated to `volumetrash.wutz.dev/expire-at`. |
 
 For a trashed volume the operator:
 

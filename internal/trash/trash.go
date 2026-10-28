@@ -1,8 +1,7 @@
-// Package trash is the trash contract between forgeai and this operator. A
-// volume (PVC) is in the trash while it carries the file server ignore label,
-// and it is purged once its expire-at annotation has passed. forgeai writes
-// these fields when it trashes, restores or re-dates a volume; this operator
-// only purges.
+// Package trash is the trash contract for this operator. A volume (PVC) is in
+// the trash while it carries the file server ignore label, and it is purged
+// once its expire-at annotation has passed. Clients write these fields when they
+// trash, restore or re-date a volume; this operator only purges.
 package trash
 
 import (
@@ -20,15 +19,22 @@ const (
 	// LabelIgnore marks a volume in the trash. The FileServer operator does not
 	// serve a volume with it.
 	LabelIgnore = "fileserver.wutz.dev/ignore"
-	// LabelLegacy is the trash label before FileServer 0.3.0. Volumes that still
-	// carry it are moved to LabelIgnore.
+	// LabelLegacy is the trash label from forgeai (before the trash logic was
+	// separated into this operator). Volumes that still carry it are moved to
+	// LabelIgnore.
 	LabelLegacy = "forgeai.wutz.dev/trash"
 	// LabelProject is set on project namespaces; its value is the Project name.
 	LabelProject = "project.wutz.dev/project"
 	// AnnotationTrashedAt is when the volume was moved to the trash (RFC3339).
-	AnnotationTrashedAt = "forgeai.wutz.dev/trashed-at"
+	AnnotationTrashedAt = "volumetrash.wutz.dev/trashed-at"
 	// AnnotationExpireAt is when a trashed volume is purged (RFC3339).
-	AnnotationExpireAt = "forgeai.wutz.dev/expire-at"
+	AnnotationExpireAt = "volumetrash.wutz.dev/expire-at"
+	// AnnotationLegacyTrashedAt is the pre-split annotation (from forgeai).
+	// Volumes with this annotation have it migrated to AnnotationTrashedAt.
+	AnnotationLegacyTrashedAt = "forgeai.wutz.dev/trashed-at"
+	// AnnotationLegacyExpireAt is the pre-split annotation (from forgeai).
+	// Volumes with this annotation have it migrated to AnnotationExpireAt.
+	AnnotationLegacyExpireAt = "forgeai.wutz.dev/expire-at"
 
 	literalTrue = "true"
 )
@@ -50,15 +56,38 @@ func ExpireAt(pvc *corev1.PersistentVolumeClaim) (time.Time, bool) {
 	return t, err == nil
 }
 
-// MigrateLegacy moves a volume trashed before FileServer 0.3.0 from the legacy
-// label to the ignore label. Other volumes are left alone.
+// MigrateLegacy migrates a volume from pre-split annotations/labels to current ones:
+//   - forgeai.wutz.dev/trash → fileserver.wutz.dev/ignore
+//   - forgeai.wutz.dev/trashed-at → volumetrash.wutz.dev/trashed-at
+//   - forgeai.wutz.dev/expire-at → volumetrash.wutz.dev/expire-at
+//
+// Other volumes are left alone.
 func MigrateLegacy(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) error {
-	if pvc.Labels[LabelLegacy] != literalTrue {
+	patch := client.MergeFrom(pvc.DeepCopy())
+	migrated := false
+
+	// Migrate label
+	if pvc.Labels[LabelLegacy] == literalTrue {
+		pvc.Labels[LabelIgnore] = literalTrue
+		delete(pvc.Labels, LabelLegacy)
+		migrated = true
+	}
+
+	// Migrate annotations
+	if _, ok := pvc.Annotations[AnnotationLegacyTrashedAt]; ok {
+		pvc.Annotations[AnnotationTrashedAt] = pvc.Annotations[AnnotationLegacyTrashedAt]
+		delete(pvc.Annotations, AnnotationLegacyTrashedAt)
+		migrated = true
+	}
+	if _, ok := pvc.Annotations[AnnotationLegacyExpireAt]; ok {
+		pvc.Annotations[AnnotationExpireAt] = pvc.Annotations[AnnotationLegacyExpireAt]
+		delete(pvc.Annotations, AnnotationLegacyExpireAt)
+		migrated = true
+	}
+
+	if !migrated {
 		return nil
 	}
-	patch := client.MergeFrom(pvc.DeepCopy())
-	pvc.Labels[LabelIgnore] = literalTrue
-	delete(pvc.Labels, LabelLegacy)
 	return c.Patch(ctx, pvc, patch)
 }
 
